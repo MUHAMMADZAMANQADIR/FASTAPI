@@ -5,20 +5,82 @@ from Models.test import User
 from Config.db import conn 
 from typing import List
 from schemas.test import  userEntity, usersEntity  
+from difflib import SequenceMatcher ,get_close_matches
 from bson import ObjectId
+from io import BytesIO
+from PIL import Image
 user = APIRouter() 
 global pathn
+global allcriminals
 def getpath():
      return pathn
- 
+
+
 @user.get('/')
 async def find_all_users():
     print(conn.CRIMINALRECORD.CRIMINALs.find())
-    return  usersEntity(conn.CRIMINALRECORD.CRIMINALs.find())
+    allcriminal = usersEntity(conn.CRIMINALRECORD.CRIMINALs.find())
+    return allcriminal
 
+
+def similarity(str1, list):
+    return get_close_matches(str1 ,list ,n=3 ,cutoff=0.1)
+
+
+@user.get('/similarcases/{inputstr}')
+async def find_similarcases(inputstr):
+    global allcriminals
+    allcriminals = usersEntity(conn.CRIMINALRECORD.CRIMINALs.find())
+    Descriptionlist=[];
+    matches=[]
+    for entry in allcriminals:
+        for key,value in entry.items():
+            if key == 'Description':
+                Descriptionlist.append(value)
+    
+    matches = similarity(inputstr, Descriptionlist)
+    
+    if(len(matches)>=0):
+        
+       return getsimilarcasesdata(matches)
+    else:
+        "Nothing similar"
+    
+                
+def getsimilarcasesdata(list):
+    i=0
+    data=[]
+    print(len(list))
+    while(i < len(list)):
+        for entry in allcriminals:
+            for key, value in entry.items():
+                if str(value) == str(list[i]):
+                   data.append(entry)
+                   i=i+1;
+                   if(i==len(list)):
+                       return data
+                 
+#------------------------
+
+
+@user.post("/files")
+async def UploadImage(file: bytes = File(...)):
+    with open('image.jpg', 'wb') as image:
+        image.write(file)
+        image.close()
+    return 'got it'
+@user.post("/putObject")
+async def put_object(file: UploadFile = File(...)) -> str:
+
+    request_object_content = await file.read()
+    img = Image.open(BytesIO(request_object_content))
+    
+    return "okay";
+#-------------------
 @user.post("/image")
-async def getimage(file: UploadFile=File(...)):
+async def getimage(file: UploadFile = File(...)):
     global pathn
+     
     try:
         pathn = f'upload/{file.filename}'
         with open(pathn ,"wb") as buffer:
@@ -76,11 +138,11 @@ def Search_Name(name):
             if str(value) == str(name):
                 return entry
     
-    return "Not found"
+    return {"Not found"}
 
  
     
  
 
 
-#uvicorn main:app --reload
+# pipenv shell and uvicorn main:app --reload and http://127.0.0.1:8000/docs
